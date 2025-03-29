@@ -1,3 +1,4 @@
 filter-test/
 frontend/node_modules/
 frontend/.next/
+openai-key.txt
