@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "A Chrome extension built with Next.js, Tailwind CSS, and TypeScript.",
   "action": {
-    "default_popup": "index.html"
+    "default_popup": "out/index.html"
   },
   "background": {
     "service_worker": "dist/background.js"
