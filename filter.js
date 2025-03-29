@@ -8,28 +8,47 @@ var openai_key = "";
 try {
     openai_key = fs.readFileSync('openai-key.txt', 'utf8').trim(); // trim() removes extra spaces/newlines
 } catch (error) {
-    console.error('Error reading the OpenAI key file:', error);
+    throw new Error('Error reading the OpenAI key file: ' + error);
 }
 
-async function urlToBase64(imageUrl) {
-    try {
-        const response = await axios.get(imageUrl, { responseType: "arraybuffer" });
-        const base64 = Buffer.from(response.data, "binary").toString("base64");
-        return `data:image/jpeg;base64,${base64}`; // Adjust MIME type if needed
+// analyzes single section of text, returns true/false
+async function analyzeTextSection(text, exclusionList) {
+	try {
+        const response = await axios.post(
+            "https://api.openai.com/v1/chat/completions",
+            {
+                model: "gpt-4o",
+                messages: [{ role: "system", content: `For the following text return the string true if it relates to any of the phrases in the exclusion list. 
+                	Return 'false' otherwise. You can only return the strings 'true' and 'false'.`},
+                    { role: "user", content: "Exclusion List: " + exclusionList},
+                    { role: "user", content: "Text:" + text }]
+            },
+            {
+                headers: {
+                    "Authorization": `Bearer ${openai_key}`,
+                    "Content-Type": "application/json"
+                }
+            }
+        );
+
+        // Extracts only the text response from OpenAI's completion
+        const resultText = response.data.choices[0]?.message?.content || "No response";
+        // console.log(resultText);
+        return resultText;
     } catch (error) {
-        console.error("Error fetching image:", error);
-        throw new Error("Failed to convert image URL to Base64");
+        throw new Error("Error: " + (error.response?.data || error.message));
     }
 }
 
-async function analyzeTest(promptText, exclusionList) {
-    /* resulting JSON formatted as such:
-        {'sections': [
-            {'text': 'abc'},
-            {'text': 'dcfe'},
-            {'text': 'what'}           
-        ]}
-    */
+// analyzes bigger block of text split into <p> tags, returns exclusions in JSON format
+/* resulting JSON formatted as such:
+    {'sections': [
+        {'text': 'abc'},
+        {'text': 'dcfe'},
+        {'text': 'what'}           
+    ]}
+*/
+async function analyzeText(promptText, exclusionList) {
     try {
         const response = await axios.post(
             "https://api.openai.com/v1/chat/completions",
@@ -46,7 +65,7 @@ async function analyzeTest(promptText, exclusionList) {
             },
             {
                 headers: {
-                    "Authorization": `Bearer ${OPENAI_API_KEY}`,
+                    "Authorization": `Bearer ${openai_key}`,
                     "Content-Type": "application/json"
                 }
             }
@@ -56,11 +75,22 @@ async function analyzeTest(promptText, exclusionList) {
         const resultText = response.data.choices[0]?.message?.content || "No response";
         return resultText;
     } catch (error) {
-        console.error("Error:", error.response?.data || error.message);
-        return "Error processing the request.";
+        throw new Error("Error:" + (error.response?.data || error.message));
     }
 }
 
+// helper function for analyzeImage()
+async function urlToBase64(imageUrl) {
+    try {
+        const response = await axios.get(imageUrl, { responseType: "arraybuffer" });
+        const base64 = Buffer.from(response.data, "binary").toString("base64");
+        return `data:image/jpeg;base64,${base64}`; // Adjust MIME type if needed
+    } catch (error) {
+        throw new Error("Failed to convert image URL to Base64");
+    }
+}
+
+// returns true or false given a particular image and the exclusion list
 async function analyzeImage(imageURLsnippet, exclusionList, baseURL = "") {
     try {
         var imageURL = baseURL + imageURLsnippet
@@ -81,7 +111,7 @@ async function analyzeImage(imageURLsnippet, exclusionList, baseURL = "") {
             },
             {
                 headers: {
-                    "Authorization": `Bearer ${OPENAI_API_KEY}`,
+                    "Authorization": `Bearer ${openai_key}`,
                     "Content-Type": "application/json"
                 }
             }
@@ -89,7 +119,6 @@ async function analyzeImage(imageURLsnippet, exclusionList, baseURL = "") {
 
         return response.data.choices[0].message.content;
     } catch (error) {
-        console.error("Error processing image:", error.response?.data || error.message);
-        return 'error';
+        throw new Error("Error:" + (error.response?.data || error.message));
     }
 }
