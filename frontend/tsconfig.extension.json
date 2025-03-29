@@ -6,7 +6,8 @@
     "moduleResolution": "node",
     "strict": true,
     "esModuleInterop": true,
-    "outDir": "dist"
+    "outDir": "dist",
+    "types": ["chrome"]
   },
   "include": ["extension/**/*.ts"]
 }
