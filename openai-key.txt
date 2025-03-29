@@ -1,0 +1,2 @@
+/* insert OpenAI secret key of format sk-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX here */
+
