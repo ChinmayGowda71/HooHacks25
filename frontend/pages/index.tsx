@@ -32,7 +32,7 @@ export default function Home() {
 
   return (
     <div className="w-full h-full flex flex-col justify-between p-4">
-      <h1 className="text-xl font-semibold text-gray-800 dark:text-white">PlaceHolder</h1>
+      <h1 className="text-xl font-semibold text-gray-800 dark:text-white">Chrome SafeBrowse</h1>
       <form onSubmit={handleSearch} className="flex flex-col space-y-4 flex-grow">
         <textarea
           ref={textareaRef}

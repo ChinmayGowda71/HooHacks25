@@ -1,5 +1,5 @@
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('[Extension] Installed!');
+  console.log('Chrome SafeBrowse Installed!');
 });
 
 // Example: receive messages

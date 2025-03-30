@@ -29,9 +29,10 @@ const loading_screen = `
       margin-bottom: 20px;
     }
     .progress-bar-container {
-      width: 80%;
+      max-width: 80%;
+      width: 270px;
       background: #e0e0e0;
-      height: 12px;
+      height: 10px;
       border-radius: 6px;
       overflow: hidden;
       margin-top: 10px;
@@ -43,17 +44,33 @@ const loading_screen = `
       transition: width 0.3s ease;
     }
     .cancel-button {
-      padding: 10px;
+      padding: 10px!important;
       margin-top: 20px;
-      font-size: 1rem;
+
       cursor: pointer;
+      color: white!important;
+      font-family: Helvetica!important;
+      font-size: 16px!important;
+      background-color: red!important;
+      border-radius: 3px!important;
+      border-width: 0px;
+      font-weight: bold;
+    }
+    h1#filter {
+      color: black!importnat;
+      border-bottom: 0px!important;
+      margin-top: 20px!important;
+      margin-bottom: 10px!important;
+      font-family: Helvetica!important;
+      font-size: 24px!important;
+      font-weight: bold;
     }
   </style>
   <div class="spinner"></div>
   <div class="progress-bar-container">
     <div class="progress-bar-fill" id="extension-progress-fill"></div>
   </div>
-  <h1 style="color:black">Filtering page...</h1>
+  <h1 id="filter">Filtering page...</h1>
   <button id="cancel-blur-button" class="cancel-button">Override: I trust this page</button>
 </div>`;
 
@@ -111,8 +128,8 @@ async function get_result(text, user_prompt, type) {
     const data = await response.json();
     return data.result;
   } catch (error) {
-    console.error("Error in get_result:", error);
-    throw error;
+    console.log('error caught');
+    return 'error';
   }
 }
 
@@ -169,13 +186,13 @@ const updateProgress = () => {
       updateProgress();
       return
     };
-    if (element.textContent.trim().length > 0 && !not_included.includes(element.tagName)) {
+    if (((/^(H[1-3])$/.test(element.tagName) && element.textContent.trim().length >= 7) || element.textContent.replace(/\s+/g, '').length >= 20) && element.textContent.trim().includes(" ") && !not_included.includes(element.tagName)) {
       const res = await get_result(element.textContent.trim(), userPrompt, 'text');
       if (window.cancelBlur) {
         updateProgress();
         return;
       };
-      if (res) {
+      if (res && res != "error") {
         element.style.filter = 'blur(5px)';
         element.style.cursor = 'pointer';
         element.setAttribute('title', 'Click to see sensitive content');
@@ -203,7 +220,7 @@ const updateProgress = () => {
       return;
     }
     if (res) {
-      element.style.filter = 'blur(5px)';
+      element.style.filter = 'blur(30px)';
       // updateProgress();
       element.style.cursor = 'pointer';
       element.setAttribute('title', 'Click to see sensitive content');

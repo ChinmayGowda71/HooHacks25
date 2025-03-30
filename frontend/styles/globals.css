@@ -12,5 +12,5 @@ body {
 
 html.dark,
 body.dark {
-  background-color: #0f172a; /* match Tailwind's dark: bg-gray-900 */
+  background-color: #0f172a!important; /* match Tailwind's dark: bg-gray-900 */
 }

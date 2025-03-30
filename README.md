@@ -1,4 +1,4 @@
-# HooHacks25 -- Chrome Filtering Extension
+# HooHacks25 -- Chrome SafeBrowse
 
 ## Contributors: Chinmay Gowda, Grant Lee, Vyas Narasimhan
 

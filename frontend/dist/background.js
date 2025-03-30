@@ -1,6 +1,6 @@
 "use strict";
 chrome.runtime.onInstalled.addListener(() => {
-    console.log('[Extension] Installed!');
+    console.log('Chrome SafeBrowse Installed!');
 });
 // Example: receive messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
