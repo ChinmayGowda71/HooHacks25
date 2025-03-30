@@ -28,6 +28,20 @@ const loading_screen = `
       animation: spin 1s linear infinite;
       margin-bottom: 20px;
     }
+    .progress-bar-container {
+      width: 80%;
+      background: #e0e0e0;
+      height: 12px;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: #3498db;
+      transition: width 0.3s ease;
+    }
     .cancel-button {
       padding: 10px;
       margin-top: 20px;
@@ -36,8 +50,11 @@ const loading_screen = `
     }
   </style>
   <div class="spinner"></div>
-  <h1 style="color:black">Filtering page...</h1>
-  <button id="cancel-blur-button" class="cancel-button">Override: I trust this page</button>
+  <div class="progress-bar-container">
+    <div class="progress-bar-fill" id="extension-progress-fill"></div>
+  </div>
+  <h1 style="color:black">This is your new content!</h1>
+  <button id="cancel-blur-button" class="cancel-button">Show Original Content</button>
 </div>`;
 
 let originalContainer = document.getElementById('extension-original-content');
@@ -139,6 +156,7 @@ const imageElements = Array.from(document.querySelectorAll('img')).filter(img =>
       if (window.cancelBlur) return;
       if (res) {
         element.style.filter = 'blur(5px)';
+        updateProgress();
         element.style.cursor = 'pointer';
         element.setAttribute('title', 'Click to see sensitive content');
         element.dataset.blurred = "true";
@@ -153,12 +171,14 @@ const imageElements = Array.from(document.querySelectorAll('img')).filter(img =>
 
   const imagePromises = imageElements.map(async (element) => {
     if (window.cancelBlur) return;
+    updateProgress()
     const src = element.getAttribute('src');
     const absoluteUrl = new URL(src, window.location.href).href;
     const res = await get_result(absoluteUrl, userPrompt, 'img');
     if (window.cancelBlur) return;
     if (res) {
       element.style.filter = 'blur(5px)';
+      updateProgress();
       element.style.cursor = 'pointer';
       element.setAttribute('title', 'Click to see sensitive content');
       const parentLink = element.closest('a');
@@ -179,6 +199,18 @@ const imageElements = Array.from(document.querySelectorAll('img')).filter(img =>
       }
     }
   });
+
+  const total = textElements.length + imageElements.length;
+  let completed = 0;
+  
+  const updateProgress = () => {
+    completed += 1;
+    const percent = Math.round((completed / total) * 100);
+    const progressFill = document.getElementById('extension-progress-fill');
+    if (progressFill) {
+      progressFill.style.width = `${percent}%`;
+    }
+  };
 
   await Promise.all([...textPromises, ...imagePromises]);
 
