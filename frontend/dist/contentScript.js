@@ -1,5 +1,72 @@
 'use strict';
 
+const loading_screen = `
+<div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; background: #fafafa;">
+  <style>
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .spinner {
+      border: 8px solid #f3f3f3;
+      border-top: 8px solid #3498db;
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+    .cancel-button {
+      padding: 10px;
+      margin-top: 20px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+  </style>
+  <div class="spinner"></div>
+  <h1 style="color:black">Filtering page...</h1>
+  <button id="cancel-blur-button" class="cancel-button">Override: I trust this page</button>
+</div>`;
+
+let originalContainer = document.getElementById('extension-original-content');
+if (!originalContainer) {
+  originalContainer = document.createElement('div');
+  originalContainer.id = 'extension-original-content';
+  while (document.body.firstChild) {
+    originalContainer.appendChild(document.body.firstChild);
+  }
+  document.body.appendChild(originalContainer);
+}
+
+let loading_container = document.getElementById('extension-loading-container');
+if (!loading_container) {
+  loading_container = document.createElement('div');
+  loading_container.id = 'extension-loading-container';
+  loading_container.innerHTML = loading_screen;
+  document.body.appendChild(loading_container);
+}
+
+// Show the loading screen and hide the original content
+originalContainer.style.display = 'none';
+loading_container.style.display = 'block';
+
+// Global flag to cancel blurring
+window.cancelBlur = false;
+
+// Add an event listener to the cancel button on the loading screen
+document.getElementById('cancel-blur-button').addEventListener('click', function () {
+  window.cancelBlur = true;
+  // Remove blur styles from any elements that might have been blurred already
+  const blurredElements = document.querySelectorAll('[style*="blur"]');
+  blurredElements.forEach((el) => {
+    el.style.filter = 'none';
+    el.removeAttribute('title');
+  });
+  // Immediately render the original content
+  originalContainer.style.display = 'block';
+  loading_container.style.display = 'none';
+});
+
 async function get_result(text, user_prompt, type) {
   const requestOptions = {
     method: "POST",
@@ -8,10 +75,10 @@ async function get_result(text, user_prompt, type) {
   };
   try {
     let url = '';
-    if (type == 'text') {
+    if (type === 'text') {
       url = 'http://127.0.0.1:5000/analyze-text-section';
     } else {
-      url = 'http://127.0.0.1:5000/analyze-image'
+      url = 'http://127.0.0.1:5000/analyze-image';
     }
     const response = await fetch(url, requestOptions);
     if (!response.ok) {
@@ -36,85 +103,78 @@ const hasBlurredAncestor = (el) => {
   return false;
 };
 
-const not_included = ['STYLE', 'SCRIPT', 'NOSCRIPT']
+const not_included = ['STYLE', 'SCRIPT', 'NOSCRIPT'];
+const userPrompt = "I'm scared of lobsters";
 
-const allElements = document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, td, tr');
-const filteredElements = Array.from(allElements).filter(elem => {
-    return !(
-        elem.closest('head') ||  // Exclude images inside <head>
-        elem.closest('header') ||  // Exclude images inside <header>
-        elem.closest('footer')    // Exclude images inside <footer>
-    );
+// Gather text elements and image elements to process
+const textElements = Array.from(document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, td, tr'));
+const imageElements = Array.from(document.querySelectorAll('img')).filter(img => {
+  return !(
+    img.closest('head') ||
+    img.closest('header') ||
+    img.closest('footer')
+  );
 });
 
-
-var userPrompt = "I'm scared of lobsters"
-
-allElements.forEach(async (element) => {
-// call api and blur based on the return
-   if (hasBlurredAncestor(element)) {
-     return;
-   }
-   if (element.textContent.trim().length > 0 && !not_included.includes(element.tagName)) {
-     const res = await get_result(element.textContent.trim(), userPrompt, 'text');
-     // console.log(element.textContent.trim())
-     // console.log(res)
-     if (res) {
-       element.style.filter = 'blur(5px)';
+// Wrap asynchronous processing in an async IIFE
+(async function processPage() {
+  // Process text elements
+  const textPromises = textElements.map(async (element) => {
+    if (window.cancelBlur) return;
+    if (hasBlurredAncestor(element)) return;
+    if (element.textContent.trim().length > 0 && !not_included.includes(element.tagName)) {
+      const res = await get_result(element.textContent.trim(), userPrompt, 'text');
+      if (window.cancelBlur) return;
+      if (res) {
+        element.style.filter = 'blur(5px)';
         element.style.cursor = 'pointer';
         element.setAttribute('title', 'Click to see sensitive content');
-
-        // Add click event to remove blur
+        element.dataset.blurred = "true";
         element.addEventListener('click', function (event) {
           event.preventDefault();
-            element.style.filter = 'none';
-            element.removeAttribute('title'); // Remove tooltip after revealing content
+          element.style.filter = 'none';
+          element.removeAttribute('title');
         }, { once: true });
-     }
-   }
-});
+      }
+    }
+  });
 
-const images = document.querySelectorAll('img');
-const filteredImages = Array.from(images).filter(img => {
-    return !(
-        img.closest('head') ||  // Exclude images inside <head>
-        img.closest('header') ||  // Exclude images inside <header>
-        img.closest('footer')     // Exclude images inside <footer>
-    );
-});
-
-filteredImages.forEach(async (element) => {
-  const src = element.getAttribute('src');
-  const url = new URL(src, window.location.href).href
-  const res = await get_result(url, userPrompt, 'img');
-  // console.log(url);
-  // console.log(res);
-  if (res) {
-   element.style.filter = 'blur(5px)';
-    element.style.cursor = 'pointer';
-    element.setAttribute('title', 'Click to see sensitive content');
-
-    const parentLink = element.closest('a');
-    if (parentLink && element.tagName === 'IMG') {
-        parentLink.dataset.firstClick = "true"; // Track first click
-        // console.log(parentLink);
+  // Process image elements
+  const imagePromises = imageElements.map(async (element) => {
+    if (window.cancelBlur) return;
+    const src = element.getAttribute('src');
+    const absoluteUrl = new URL(src, window.location.href).href;
+    const res = await get_result(absoluteUrl, userPrompt, 'img');
+    if (window.cancelBlur) return;
+    if (res) {
+      element.style.filter = 'blur(5px)';
+      element.style.cursor = 'pointer';
+      element.setAttribute('title', 'Click to see sensitive content');
+      const parentLink = element.closest('a');
+      if (parentLink && element.tagName === 'IMG') {
+        parentLink.dataset.firstClick = "true";
         parentLink.addEventListener('click', function (event) {
           if (parentLink.dataset.firstClick === "true") {
-              event.preventDefault(); // Stop the link from opening on first click
-              element.style.filter = 'none'; // Unblur the image
-              parentLink.dataset.firstClick = "false"; // Allow navigation on second click
+            event.preventDefault();
+            element.style.filter = 'none';
+            parentLink.dataset.firstClick = "false";
           }
         });
-    } else {
-        // Regular case: Unblur on click
-        element.addEventListener(
-            'click',
-            function () {
-                element.style.filter = 'none';
-                element.removeAttribute('title'); // Remove tooltip after revealing content
-            },
-            { once: true } // Ensures it only triggers once per element
-        );
+      } else {
+        element.addEventListener('click', function () {
+          element.style.filter = 'none';
+          element.removeAttribute('title');
+        }, { once: true });
+      }
     }
-}
-})
+  });
+
+  await Promise.all([...textPromises, ...imagePromises]);
+
+  // Only show the original content if the user hasn't cancelled
+  if (!window.cancelBlur) {
+    originalContainer.style.display = 'block';
+    loading_container.style.display = 'none';
+  }
+})();
+
