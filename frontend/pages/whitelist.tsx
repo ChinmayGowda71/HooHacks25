@@ -36,12 +36,12 @@ export default function Whitelist() {
   };
 
   const handleAddCurrentTab = () => {
-    chrome.tabs?.query({ active: true, currentWindow: true }, (tabs) => {
+    chrome.tabs?.query({ active: true, currentWindow: true }, async (tabs) => {
       const url = tabs[0]?.url;
       if (url) {
         try {
-          const domain = new URL(url).hostname;
-          addItem(domain);
+          const [tab] = await chrome.tabs.query({active: true, lastFocusedWindow: true});
+          addItem(tab.url);
         } catch (err) {
           console.error('Invalid URL:', url);
         }

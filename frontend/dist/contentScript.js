@@ -1,5 +1,17 @@
 'use strict';
 
+function getStorageValue(key) {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get([key], (result) => {
+      if (chrome.runtime.lastError) {
+        reject(chrome.runtime.lastError);
+      } else {
+        resolve(result[key]);
+      }
+    });
+  });
+}
+
 const loading_screen = `
 <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; background: #fafafa;">
   <style>
@@ -99,7 +111,6 @@ const hasBlurredAncestor = (el) => {
 };
 
 const not_included = ['STYLE', 'SCRIPT', 'NOSCRIPT'];
-const userPrompt = "I'm scared of lobsters";
 
 const textElements = Array.from(document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, td, tr'));
 const imageElements = Array.from(document.querySelectorAll('img')).filter(img => {
@@ -111,6 +122,15 @@ const imageElements = Array.from(document.querySelectorAll('img')).filter(img =>
 });
 
 (async function processPage() {
+  let skipPages = await getStorageValue("whitelist");
+  skipPages = skipPages || [];
+  if (skipPages.includes(window.location.href)) {
+    originalContainer.style.display = 'block';
+    loading_container.style.display = 'none';
+    return;
+  }
+
+  let userPrompt = await getStorageValue('searchQuery');
   const textPromises = textElements.map(async (element) => {
     if (window.cancelBlur) return;
     if (hasBlurredAncestor(element)) return;

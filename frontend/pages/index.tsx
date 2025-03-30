@@ -46,7 +46,7 @@ export default function Home() {
             type="submit"
             className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 dark:hover:bg-blue-500 transition"
           >
-            Search
+            Save
           </button>
         </div>
       </form>
