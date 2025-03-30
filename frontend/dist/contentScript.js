@@ -53,8 +53,8 @@ const loading_screen = `
   <div class="progress-bar-container">
     <div class="progress-bar-fill" id="extension-progress-fill"></div>
   </div>
-  <h1 style="color:black">This is your new content!</h1>
-  <button id="cancel-blur-button" class="cancel-button">Show Original Content</button>
+  <h1 style="color:black">Filtering page...</h1>
+  <button id="cancel-blur-button" class="cancel-button">Override: I trust this page</button>
 </div>`;
 
 let originalContainer = document.getElementById('extension-original-content');
@@ -138,6 +138,18 @@ const imageElements = Array.from(document.querySelectorAll('img')).filter(img =>
   );
 });
 
+const total = textElements.length + imageElements.length;
+let completed = 0;
+
+const updateProgress = () => {
+  completed += 1;
+  const percent = Math.round((completed / total) * 100);
+  const progressFill = document.getElementById('extension-progress-fill');
+  if (progressFill) {
+    progressFill.style.width = `${percent}%`;
+  }
+};
+
 (async function processPage() {
   let skipPages = await getStorageValue("whitelist");
   skipPages = skipPages || [];
@@ -149,14 +161,22 @@ const imageElements = Array.from(document.querySelectorAll('img')).filter(img =>
 
   let userPrompt = await getStorageValue('searchQuery');
   const textPromises = textElements.map(async (element) => {
-    if (window.cancelBlur) return;
-    if (hasBlurredAncestor(element)) return;
+    if (window.cancelBlur) {
+      updateProgress();
+      return;
+    };
+    if (hasBlurredAncestor(element)) {
+      updateProgress();
+      return
+    };
     if (element.textContent.trim().length > 0 && !not_included.includes(element.tagName)) {
       const res = await get_result(element.textContent.trim(), userPrompt, 'text');
-      if (window.cancelBlur) return;
+      if (window.cancelBlur) {
+        updateProgress();
+        return;
+      };
       if (res) {
         element.style.filter = 'blur(5px)';
-        updateProgress();
         element.style.cursor = 'pointer';
         element.setAttribute('title', 'Click to see sensitive content');
         element.dataset.blurred = "true";
@@ -166,19 +186,25 @@ const imageElements = Array.from(document.querySelectorAll('img')).filter(img =>
           element.removeAttribute('title');
         }, { once: true });
       }
+      updateProgress();
     }
   });
 
   const imagePromises = imageElements.map(async (element) => {
-    if (window.cancelBlur) return;
-    updateProgress()
+    if (window.cancelBlur) {
+      updateProgress();
+      return;
+    }
     const src = element.getAttribute('src');
     const absoluteUrl = new URL(src, window.location.href).href;
     const res = await get_result(absoluteUrl, userPrompt, 'img');
-    if (window.cancelBlur) return;
+    if (window.cancelBlur) {
+      updateProgress();
+      return;
+    }
     if (res) {
       element.style.filter = 'blur(5px)';
-      updateProgress();
+      // updateProgress();
       element.style.cursor = 'pointer';
       element.setAttribute('title', 'Click to see sensitive content');
       const parentLink = element.closest('a');
@@ -198,19 +224,8 @@ const imageElements = Array.from(document.querySelectorAll('img')).filter(img =>
         }, { once: true });
       }
     }
+    updateProgress();
   });
-
-  const total = textElements.length + imageElements.length;
-  let completed = 0;
-  
-  const updateProgress = () => {
-    completed += 1;
-    const percent = Math.round((completed / total) * 100);
-    const progressFill = document.getElementById('extension-progress-fill');
-    if (progressFill) {
-      progressFill.style.width = `${percent}%`;
-    }
-  };
 
   await Promise.all([...textPromises, ...imagePromises]);
 
