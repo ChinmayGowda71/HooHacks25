@@ -46,23 +46,18 @@ if (!loading_container) {
   document.body.appendChild(loading_container);
 }
 
-// Show the loading screen and hide the original content
 originalContainer.style.display = 'none';
 loading_container.style.display = 'block';
 
-// Global flag to cancel blurring
 window.cancelBlur = false;
 
-// Add an event listener to the cancel button on the loading screen
 document.getElementById('cancel-blur-button').addEventListener('click', function () {
   window.cancelBlur = true;
-  // Remove blur styles from any elements that might have been blurred already
   const blurredElements = document.querySelectorAll('[style*="blur"]');
   blurredElements.forEach((el) => {
     el.style.filter = 'none';
     el.removeAttribute('title');
   });
-  // Immediately render the original content
   originalContainer.style.display = 'block';
   loading_container.style.display = 'none';
 });
@@ -106,7 +101,6 @@ const hasBlurredAncestor = (el) => {
 const not_included = ['STYLE', 'SCRIPT', 'NOSCRIPT'];
 const userPrompt = "I'm scared of lobsters";
 
-// Gather text elements and image elements to process
 const textElements = Array.from(document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, td, tr'));
 const imageElements = Array.from(document.querySelectorAll('img')).filter(img => {
   return !(
@@ -116,9 +110,7 @@ const imageElements = Array.from(document.querySelectorAll('img')).filter(img =>
   );
 });
 
-// Wrap asynchronous processing in an async IIFE
 (async function processPage() {
-  // Process text elements
   const textPromises = textElements.map(async (element) => {
     if (window.cancelBlur) return;
     if (hasBlurredAncestor(element)) return;
@@ -139,7 +131,6 @@ const imageElements = Array.from(document.querySelectorAll('img')).filter(img =>
     }
   });
 
-  // Process image elements
   const imagePromises = imageElements.map(async (element) => {
     if (window.cancelBlur) return;
     const src = element.getAttribute('src');
@@ -171,7 +162,6 @@ const imageElements = Array.from(document.querySelectorAll('img')).filter(img =>
 
   await Promise.all([...textPromises, ...imagePromises]);
 
-  // Only show the original content if the user hasn't cancelled
   if (!window.cancelBlur) {
     originalContainer.style.display = 'block';
     loading_container.style.display = 'none';
