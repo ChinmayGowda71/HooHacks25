@@ -94,7 +94,7 @@ async function urlToBase64(imageUrl) {
 async function analyzeImage(imageURLsnippet, exclusionList, baseURL = "") {
     try {
         var imageURL = baseURL + imageURLsnippet
-        const base64Image = await urlToBase64(imageUrl);
+        const base64Image = await urlToBase64(imageURL);
         const response = await axios.post(
             "https://api.openai.com/v1/chat/completions",
             {
@@ -103,7 +103,7 @@ async function analyzeImage(imageURLsnippet, exclusionList, baseURL = "") {
                     {
                         role: "user",
                         content: [
-                            { type: "text", text: "Does this image have to do with anything with any of the items on the following exclusion list? Return the exact text 'true' or 'false'." + exclusionList},
+                            { type: "text", text: "Could this image trigger any of the fears or exclusions mentioned in the user prompt? Return 'true' or 'false'." + exclusionList},
                             { type: "image_url", image_url: { url: base64Image, detail: "low" }}
                         ],
                     },
@@ -116,9 +116,14 @@ async function analyzeImage(imageURLsnippet, exclusionList, baseURL = "") {
                 }
             }
         );
-
+        console.log(response.data.choices[0].message.content);
         return response.data.choices[0].message.content;
     } catch (error) {
-        throw new Error("Error:" + (error.response?.data || error.message));
+        throw new Error(error);
     }
+
 }
+
+console.time('Part1')
+analyzeImage("https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/Trimeresurus_sabahi_fucatus%2C_Banded_pit_viper_-_Takua_Pa_District%2C_Phang-nga_Province_%2846710893582%29.jpg/330px-Trimeresurus_sabahi_fucatus%2C_Banded_pit_viper_-_Takua_Pa_District%2C_Phang-nga_Province_%2846710893582%29.jpg", "I am very scared of snakes")
+console.timeEnd('Part1')

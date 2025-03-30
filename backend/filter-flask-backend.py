@@ -1,4 +1,5 @@
-import os, json, base64, openai, requests
+import os, json, base64, requests
+from openai import OpenAI
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
@@ -15,7 +16,6 @@ except Exception as e:
     raise Exception(f"Error reading the OpenAI key file: {e}")
 
 # Initialize OpenAI client
-openai.api_key = OPENAI_KEY
 
 # Endpoint to analyze a single text section (GET request)
 @app.route('/analyze-text-section', methods=['GET'])
@@ -33,17 +33,19 @@ def analyze_text_section():
         return jsonify({"error": "Missing required parameters"}), 400
 
     try:
-        response = openai.ChatCompletion.create(
+        client = OpenAI(api_key = OPENAI_KEY)
+        response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": """Return 'true' if the text relates to any exclusion list phrases, otherwise return 'false'. 
+                {"role": "system", "content": """Return 'true' if the text contains content that could trigger 
+                any of the fears or exclusions mentioned in the user prompt, otherwise return 'false'. 
                 Only return 'true' or 'false'."""},
-                {"role": "user", "content": f"Exclusion List: {exclusion_list}"},
+                {"role": "user", "content": f"User Prompt: {exclusion_list}"},
                 {"role": "user", "content": f"Text: {text}"}
             ]
         )
-        result_text = response["choices"][0]["message"]["content"]
-        return jsonify({"result": result_text})
+        result_text = response.choices[0].message.content
+        return jsonify({"result": result_text.lower() in ['true']})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -63,20 +65,21 @@ def analyze_text():
         return jsonify({"error": "Missing required parameters"}), 400
 
     try:
-        response = openai.ChatCompletion.create(
+        client = OpenAI(api_key = OPENAI_KEY)
+        response = client.chat.completions.create(
             model="gpt-4o",
             response_format="json",
             messages=[
                 {"role": "system", "content": 
                     """Extract user-visible text from the provided HTML and split it into logical sections. 
                     Each section should preserve the original text and structure without modifications. 
-                    "eturn sections related to the exclusion list in JSON format with a list named 'sections', each containing a 'text' field."""
+                    return sectionsthat could trigger any of the fears or exclusions mentioned in the user prompt with a list named 'sections', each containing a 'text' field."""
                 },
-                {"role": "user", "content": f"Exclusion List: {exclusion_list}"},
+                {"role": "user", "content": f"User Prompt: {exclusion_list}"},
                 {"role": "user", "content": f"Text: {prompt_text}"}
             ]
         )
-        result_text = response["choices"][0]["message"]["content"]
+        result_text = response.choices[0].message.content
         try:
             result_json = json.loads(result_text)
         except json.JSONDecodeError:
@@ -88,7 +91,22 @@ def analyze_text():
 # Helper function: Convert an image URL to a Base64 data URL
 def url_to_base64(image_url):
     try:
-        response = requests.get(image_url)
+        headers_sample = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "same-origin",
+            "Sec-Fetch-User": "?1",
+            "Cache-Control": "max-age=0"
+        }
+        response = requests.get(image_url, headers=headers_sample)
+        #print(response)
         if response.status_code != 200:
             raise Exception(f"Failed to fetch image. Status code: {response.status_code}")
         encoded = base64.b64encode(response.content).decode('utf-8')
@@ -97,6 +115,7 @@ def url_to_base64(image_url):
         raise Exception(f"Failed to convert image URL to Base64: {e}")
 
 # Endpoint to analyze an image based on exclusion list (GET request)
+# NOTE: images should be downsized to <500 px to minimize runtime
 @app.route('/analyze-image', methods=['GET'])
 def analyze_image():
     """
@@ -107,6 +126,7 @@ def analyze_image():
     Returns: JSON with 'true' or 'false' from image analysis.
     """
     image_snippet = request.args.get('imageURLsnippet')
+    print(image_snippet)
     exclusion_list = request.args.get('exclusionList')
     base_url = request.args.get('baseURL', "")
 
@@ -121,20 +141,22 @@ def analyze_image():
         return jsonify({"error": str(e)}), 500
 
     try:
-        response = openai.ChatCompletion.create(
+        client = OpenAI(api_key = OPENAI_KEY)
+        response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": f"Does this image relate to any items on the exclusion list? Return 'true' or 'false'. {exclusion_list}"},
+                        {"type": "text", "text": f"""Could this image trigger trigger any of the fears or
+                         exclusions mentioned in the user prompt? Return 'true' or 'false'. User Prompt: {exclusion_list}"""},
                         {"type": "image_url", "image_url": {"url": base64_image, "detail": "low"}}
                     ]
                 }
             ]
         )
-        result_text = response["choices"][0]["message"]["content"]
-        return jsonify({"result": result_text})
+        result_text = response.choices[0].message.content
+        return jsonify({"result": result_text.lower() in ['true']})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
