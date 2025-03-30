@@ -1,138 +1,53 @@
-function delay(milliseconds) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+'use strict';
+
+async function get_result(text, user_prompt) {
+  const requestOptions = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: text, exclusionList: user_prompt }),
+  };
+  try {
+    const response = await fetch("http://127.0.0.1:5000/analyze-text-section", requestOptions);
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}`);
+    }
+    const data = await response.json();
+    return data.result;
+  } catch (error) {
+    console.error("Error in get_result:", error);
+    throw error;
+  }
 }
 
-async function get_filtered_html() {
-  await delay(5000);
-  return `
-    <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background: #fafafa;">
-      <h1 style="color:black">This is your new content!</h1>
-    </div>
-  `;
-}
+const paragraph_len = 200;
 
-function override_filter() {
-  let originalContainer = document.getElementById('extension-original-content');
-  originalContainer.style.display = 'block';
+const allElements = document.querySelectorAll('*');
 
-  let loading = document.getElementById('loading');
-  loading.style.display = 'none'
-}
+const hasBlurredAncestor = (el) => {
+  let parent = el.parentElement;
+  while (parent) {
+    if (parent.dataset && parent.dataset.blurred === "true") {
+      return true;
+    }
+    parent = parent.parentElement;
+  }
+  return false;
+};
 
-(async function () {
-  if (window.__extensionInjected) {
+const not_included = ['STYLE', 'SCRIPT', 'NOSCRIPT']
+
+allElements.forEach(async (element) => {
+  // call api and blur based on the return
+  const words = element.textContent.trim().split(' ');
+  if (hasBlurredAncestor(element)) {
     return;
   }
-  window.__extensionInjected = true;
-
-  // Wrap original content in a container for later restoration.
-  let originalContainer = document.getElementById('extension-original-content');
-  if (!originalContainer) {
-    originalContainer = document.createElement('div');
-    originalContainer.id = 'extension-original-content';
-    // Move all existing body children into the original container.
-    while (document.body.firstChild) {
-      originalContainer.appendChild(document.body.firstChild);
+  if (words.length <= paragraph_len && element.textContent.trim().length > 0 && !not_included.includes(element.tagName)) {
+    const res = await get_result(element.textContent.trim(), "I'm scared of snakes");
+    console.log(element.textContent.trim())
+    console.log(res)
+    if (res === "true") {
+      element.style.filter = 'blur(5px)';
     }
-    document.body.appendChild(originalContainer);
   }
-
-  let loading = document.getElementById('loading');
-  if (!loading) {
-    loading = document.createElement('div');
-    loading.id = 'loading';
-    loading.innerHTML = `
-      <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; background: #fafafa;">
-        <style>
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-          .spinner {
-            border: 8px solid #f3f3f3;
-            border-top: 8px solid #3498db;
-            border-radius: 50%;
-            width: 60px;
-            height: 60px;
-            animation: spin 1s linear infinite;
-            margin-bottom: 20px;
-          }
-        </style>
-        <div class="spinner"></div>
-        <h1 style="color:black">Loading filtered content</h1>
-        <button class="button" id="override">Override</button>
-      </div>
-    `;
-    document.body.appendChild(loading);
-  }
-  Object.assign(document.getElementById('override').style, {
-    padding: '8px 12px',
-    backgroundColor: '#007bff',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer'
-  });
-  document.getElementById('override').addEventListener('click', override_filter);
-
-  originalContainer.style.display = 'none';
-  loading.style.display = 'block'
-
-  new_html = await get_filtered_html()
-
-  // Create a container for random content (hidden by default).
-  let randomContainer = document.getElementById('extension-random-content');
-  if (!randomContainer) {
-    randomContainer = document.createElement('div');
-    randomContainer.id = 'extension-random-content';
-    randomContainer.style.display = 'none';
-    // Customize your random content as needed.
-    randomContainer.innerHTML = new_html;
-    document.body.appendChild(randomContainer);
-  }
-
-  // Create the fixed toggle button.
-  const toggleButton = document.createElement('button');
-  toggleButton.id = 'extension-toggle-button';
-  toggleButton.textContent = 'Replace Page Content';
-  // Style the button (customize as needed).
-  Object.assign(toggleButton.style, {
-    position: 'fixed',
-    top: '10px',
-    right: '10px',
-    zIndex: '9999',
-    padding: '8px 12px',
-    backgroundColor: '#007bff',
-    color: '#fff',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer'
-  });
-  document.body.appendChild(toggleButton);
-
-  if (loading.style.display !== 'none') {
-    originalContainer.style.display = 'none';
-    loading.style.display = 'none';
-    randomContainer.style.display = 'block';
-  } else {
-    originalContainer.style.display = 'block';
-    loading.style.display = 'none';
-    randomContainer.style.display = 'none';
-  }
-  toggleButton.textContent = 'Restore Page Content';
-
-  // Toggle the display between the original content and the random content.
-  toggleButton.addEventListener('click', () => {
-    if (originalContainer.style.display !== 'none') {
-      // Hide the original content, show random content.
-      originalContainer.style.display = 'none';
-      randomContainer.style.display = 'block';
-      toggleButton.textContent = 'Restore Page Content';
-    } else {
-      // Restore original content, hide random content.
-      originalContainer.style.display = 'block';
-      randomContainer.style.display = 'none';
-      toggleButton.textContent = 'Replace Page Content';
-    }
-  });
-})();
+});
