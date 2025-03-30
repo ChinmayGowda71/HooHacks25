@@ -21,7 +21,6 @@ except Exception as e:
 # Initialize OpenAI client
 
 client = OpenAI(
-    # This is the default and can be omitted
     api_key=OPENAI_KEY,
 )
 
@@ -45,8 +44,7 @@ def analyze_text_section():
         response = client.responses.create(
             model="gpt-4o-mini",
             instructions="""Return 'true' if the text contains content that could trigger any of the fears or exclusions 
-            mentioned in the user prompt, 
-            otherwise return 'false'. Only return 'true' or 'false.""",
+            mentioned in the user prompt, otherwise return 'false'. Only return 'true' or 'false.""",
             input=f"User Prompt: {exclusion_list}, Text: {text}"
         )
         result_text = response.output_text
@@ -125,14 +123,13 @@ def analyze_image():
     Returns: JSON with 'true' or 'false' from image analysis.
     """
     data = request.get_json()
-    image_snippet = data['imageURLsnippet']
+    image_snippet = data['text']
     exclusion_list = data['exclusionList']
-    base_url = data['baseURL']
 
     if not image_snippet or not exclusion_list:
         return jsonify({"error": "Missing required parameters"}), 400
 
-    image_url = base_url + image_snippet
+    image_url = image_snippet
 
     try:
         base64_image = url_to_base64(image_url)
@@ -142,7 +139,7 @@ def analyze_image():
     try:
         response = client.responses.create(
             model="gpt-4o-mini",
-            instructions="""Could this image trigger trigger any of the fears or 
+            instructions=f"""Could this image trigger trigger any of the fears or 
             exclusions mentioned in the user prompt? Return 'true' or 'false'. User Prompt: {exclusion_list}""",
             input=f"Image url: {base64_image}, Detail: low"
         )
