@@ -25,8 +25,6 @@ async function get_result(text, user_prompt, type) {
   }
 }
 
-const paragraph_len = 200;
-
 const hasBlurredAncestor = (el) => {
   let parent = el.parentElement;
   while (parent) {
@@ -38,35 +36,85 @@ const hasBlurredAncestor = (el) => {
   return false;
 };
 
-// const not_included = ['STYLE', 'SCRIPT', 'NOSCRIPT']
+const not_included = ['STYLE', 'SCRIPT', 'NOSCRIPT']
 
-// const allElements = document.querySelectorAll('*');
+const allElements = document.querySelectorAll('p, h1, h2, h3, h4, h5, h6, td, tr');
+const filteredElements = Array.from(allElements).filter(elem => {
+    return !(
+        elem.closest('head') ||  // Exclude images inside <head>
+        elem.closest('header') ||  // Exclude images inside <header>
+        elem.closest('footer')    // Exclude images inside <footer>
+    );
+});
 
-// allElements.forEach(async (element) => {
-//   // call api and blur based on the return
-//   const words = element.textContent.trim().split(' ');
-//   if (hasBlurredAncestor(element)) {
-//     return;
-//   }
-//   if (words.length <= paragraph_len && element.textContent.trim().length > 0 && !not_included.includes(element.tagName)) {
-//     const res = await get_result(element.textContent.trim(), "I'm scared of snakes", 'text');
-//     console.log(element.textContent.trim())
-//     console.log(res)
-//     if (res) {
-//       element.style.filter = 'blur(5px)';
-//     }
-//   }
-// });
+
+var userPrompt = "I'm scared of lobsters"
+
+allElements.forEach(async (element) => {
+// call api and blur based on the return
+   if (hasBlurredAncestor(element)) {
+     return;
+   }
+   if (element.textContent.trim().length > 0 && !not_included.includes(element.tagName)) {
+     const res = await get_result(element.textContent.trim(), userPrompt, 'text');
+     // console.log(element.textContent.trim())
+     // console.log(res)
+     if (res) {
+       element.style.filter = 'blur(5px)';
+        element.style.cursor = 'pointer';
+        element.setAttribute('title', 'Click to see sensitive content');
+
+        // Add click event to remove blur
+        element.addEventListener('click', function (event) {
+          event.preventDefault();
+            element.style.filter = 'none';
+            element.removeAttribute('title'); // Remove tooltip after revealing content
+        }, { once: true });
+     }
+   }
+});
 
 const images = document.querySelectorAll('img');
+const filteredImages = Array.from(images).filter(img => {
+    return !(
+        img.closest('head') ||  // Exclude images inside <head>
+        img.closest('header') ||  // Exclude images inside <header>
+        img.closest('footer')     // Exclude images inside <footer>
+    );
+});
 
-images.forEach(async (element) => {
+filteredImages.forEach(async (element) => {
   const src = element.getAttribute('src');
   const url = new URL(src, window.location.href).href
-  const res = await get_result(url, "I'm scared of snakes", 'img');
-  console.log(url);
-  console.log(res);
+  const res = await get_result(url, userPrompt, 'img');
+  // console.log(url);
+  // console.log(res);
   if (res) {
-    element.style.filter = 'blur(15px)';
-  }
+   element.style.filter = 'blur(5px)';
+    element.style.cursor = 'pointer';
+    element.setAttribute('title', 'Click to see sensitive content');
+
+    const parentLink = element.closest('a');
+    if (parentLink && element.tagName === 'IMG') {
+        parentLink.dataset.firstClick = "true"; // Track first click
+        // console.log(parentLink);
+        parentLink.addEventListener('click', function (event) {
+          if (parentLink.dataset.firstClick === "true") {
+              event.preventDefault(); // Stop the link from opening on first click
+              element.style.filter = 'none'; // Unblur the image
+              parentLink.dataset.firstClick = "false"; // Allow navigation on second click
+          }
+        });
+    } else {
+        // Regular case: Unblur on click
+        element.addEventListener(
+            'click',
+            function () {
+                element.style.filter = 'none';
+                element.removeAttribute('title'); // Remove tooltip after revealing content
+            },
+            { once: true } // Ensures it only triggers once per element
+        );
+    }
+}
 })

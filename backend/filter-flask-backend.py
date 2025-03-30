@@ -43,12 +43,34 @@ def analyze_text_section():
     try:
         response = client.responses.create(
             model="gpt-4o-mini",
-            instructions="""Return 'true' if the text contains content that could trigger any of the fears or exclusions 
-            mentioned in the user prompt, otherwise return 'false'. Only return 'true' or 'false.""",
+            instructions=f"""
+            Analyze this text carefully for any mention, description, or reference to the specific fears or exclusions stated by the user.
+            
+            User statement: {exclusion_list}
+            
+            Instructions:
+            1. Extract key terms/concepts the user wants to avoid (e.g., "snakes", "heights", "spiders")
+            2. Scan the text for ANY mention of these terms or closely related concepts
+            3. Return "true" if you detect ANY match, including:
+               - Direct mentions (e.g., "snake")
+               - Related terms (e.g., "serpent", "python", "cobra")
+               - Metaphorical references (e.g., "slithered like a snake")
+               - Implicit descriptions that clearly evoke the feared object/concept
+            4. Return "false" ONLY if you are confident the text contains none of the specified elements
+            
+            Examples:
+            - If user states "I'm scared of snakes" and text mentions reptiles, serpents, or snake-like behaviors → return "true"
+            - If user states "I don't like heights" and text describes tall buildings, falling, or looking down from elevations → return "true"
+            - If user states "I'm afraid of spiders" and text mentions webs, arachnids, or eight-legged creatures → return "true"
+            
+            Err on the side of caution - if there's any doubt about whether the text contains excluded content, return "true".
+            
+            IMPORTANT: Return ONLY the word "true" or "false" with no additional text or explanation.
+            """,
             input=f"User Prompt: {exclusion_list}, Text: {text}"
         )
         result_text = response.output_text
-        return jsonify({"result": result_text})
+        return jsonify({"result": 'true' in result_text.lower()})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -103,7 +125,6 @@ def url_to_base64(image_url):
             "Cache-Control": "max-age=0"
         }
         response = requests.get(image_url, headers=headers_sample)
-        #print(response)
         if response.status_code != 200:
             raise Exception(f"Failed to fetch image. Status code: {response.status_code}")
         encoded = base64.b64encode(response.content).decode('utf-8')
@@ -138,13 +159,38 @@ def analyze_image():
 
     try:
         response = client.responses.create(
-            model="gpt-4o-mini",
-            instructions=f"""Could this image trigger trigger any of the fears or 
-            exclusions mentioned in the user prompt? Return 'true' or 'false'. User Prompt: {exclusion_list}""",
-            input=f"Image url: {base64_image}, Detail: low"
-        )
+            model = "gpt-4o-mini",
+            input = [{
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": f"""
+                        Analyze this image carefully for any objects, elements, or scenes that match the specific fears or exclusions mentioned by the user.
+                        
+                        User prompt: {exclusion_list}
+                        
+                        Instructions:
+                        1. Extract key objects/elements the user wants to avoid (e.g., "snakes", "heights", "spiders")
+                        2. Thoroughly examine the image for ANY visual representation of these objects/elements
+                        3. Return "true" if you detect ANY match, even partial or subtle representations
+                        4. Return "false" ONLY if you are confident the image contains none of the specified elements
+                        
+                        Examples:
+                        - If user states "I'm scared of snakes" and image shows any snake or snake-like object → return "true"
+                        - If user states "I don't like heights" and image shows cliff edges, tall buildings, or aerial views → return "true"
+                        - If user states "I'm afraid of spiders" and image shows any arachnid or web structure → return "true"
+                        
+                        Err on the side of caution - if there's any doubt about whether the image contains excluded content, return "true".
+
+                        If you can't view the image or analyze the images directly, return "true".
+
+                        The only words you can return are 'true' and 'false'
+                         """},
+                    {'type': 'input_image', 'image_url': base64_image, 'detail': 'low'}
+                ]
+            }])
         result_text = response.output_text
-        return jsonify({"result": result_text.lower() in ['true']})
+        print(result_text)
+        return jsonify({"result": 'true' in result_text.lower()})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
