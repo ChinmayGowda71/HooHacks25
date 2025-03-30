@@ -1,8 +1,11 @@
-import os, json, base64, requests
-from openai import OpenAI
+import os, json, base64, openai, requests
 from flask import Flask, request, jsonify
+from flask_cors import CORS
+from openai import OpenAI
 
 app = Flask(__name__)
+CORS(app, supports_credentials=True)
+app.config['CACHE_TYPE'] = 'simple'
 
 # Load OpenAI API Key from file
 OPENAI_KEY_FILE = 'openai-key.txt'
@@ -17,8 +20,13 @@ except Exception as e:
 
 # Initialize OpenAI client
 
+client = OpenAI(
+    # This is the default and can be omitted
+    api_key=OPENAI_KEY,
+)
+
 # Endpoint to analyze a single text section (GET request)
-@app.route('/analyze-text-section', methods=['GET'])
+@app.route('/analyze-text-section', methods=['POST'])
 def analyze_text_section():
     """
     Query Parameters:
@@ -26,31 +34,28 @@ def analyze_text_section():
       - exclusionList: The list of exclusions (comma-separated)
     Returns: JSON response with 'true' or 'false'.
     """
-    text = request.args.get('text')
-    exclusion_list = request.args.get('exclusionList')
+    data = request.get_json()
+    text = data['text']
+    exclusion_list = data['exclusionList']
 
     if not text or not exclusion_list:
         return jsonify({"error": "Missing required parameters"}), 400
 
     try:
-        client = OpenAI(api_key = OPENAI_KEY)
-        response = client.chat.completions.create(
+        response = client.responses.create(
             model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": """Return 'true' if the text contains content that could trigger 
-                any of the fears or exclusions mentioned in the user prompt, otherwise return 'false'. 
-                Only return 'true' or 'false'."""},
-                {"role": "user", "content": f"User Prompt: {exclusion_list}"},
-                {"role": "user", "content": f"Text: {text}"}
-            ]
+            instructions="""Return 'true' if the text contains content that could trigger any of the fears or exclusions 
+            mentioned in the user prompt, 
+            otherwise return 'false'. Only return 'true' or 'false.""",
+            input=f"User Prompt: {exclusion_list}, Text: {text}"
         )
-        result_text = response.choices[0].message.content
-        return jsonify({"result": result_text.lower() in ['true']})
+        result_text = response.output_text
+        return jsonify({"result": result_text})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 # Endpoint to analyze larger blocks of text and return JSON sections (GET request)
-@app.route('/analyze-text', methods=['GET'])
+@app.route('/analyze-text', methods=['POST'])
 def analyze_text():
     """
     Query Parameters:
@@ -58,28 +63,22 @@ def analyze_text():
       - exclusionList: The exclusion criteria list (comma-separated)
     Returns: JSON object with extracted text sections.
     """
-    prompt_text = request.args.get('promptText')
-    exclusion_list = request.args.get('exclusionList')
+    data = request.get_json()
+    prompt_text = data['promptText']
+    exclusion_list = data['exclusionList']
 
     if not prompt_text or not exclusion_list:
         return jsonify({"error": "Missing required parameters"}), 400
 
     try:
-        client = OpenAI(api_key = OPENAI_KEY)
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            response_format="json",
-            messages=[
-                {"role": "system", "content": 
-                    """Extract user-visible text from the provided HTML and split it into logical sections. 
+        response = client.responses.create(
+            model="gpt-4o-mini",
+            instructions="""Extract user-visible text from the provided HTML and split it into logical sections. 
                     Each section should preserve the original text and structure without modifications. 
-                    return sectionsthat could trigger any of the fears or exclusions mentioned in the user prompt with a list named 'sections', each containing a 'text' field."""
-                },
-                {"role": "user", "content": f"User Prompt: {exclusion_list}"},
-                {"role": "user", "content": f"Text: {prompt_text}"}
-            ]
+                    return sectionsthat could trigger any of the fears or exclusions mentioned in the user prompt with a list named 'sections', each containing a 'text' field.""",
+            input=f"User Prompt: {exclusion_list}, Text: {prompt_text}"
         )
-        result_text = response.choices[0].message.content
+        result_text = response.output_text
         try:
             result_json = json.loads(result_text)
         except json.JSONDecodeError:
@@ -116,7 +115,7 @@ def url_to_base64(image_url):
 
 # Endpoint to analyze an image based on exclusion list (GET request)
 # NOTE: images should be downsized to <500 px to minimize runtime
-@app.route('/analyze-image', methods=['GET'])
+@app.route('/analyze-image', methods=['POST'])
 def analyze_image():
     """
     Query Parameters:
@@ -125,10 +124,10 @@ def analyze_image():
       - baseURL: (optional) a base URL to prepend to imageURLsnippet
     Returns: JSON with 'true' or 'false' from image analysis.
     """
-    image_snippet = request.args.get('imageURLsnippet')
-    print(image_snippet)
-    exclusion_list = request.args.get('exclusionList')
-    base_url = request.args.get('baseURL', "")
+    data = request.get_json()
+    image_snippet = data['imageURLsnippet']
+    exclusion_list = data['exclusionList']
+    base_url = data['baseURL']
 
     if not image_snippet or not exclusion_list:
         return jsonify({"error": "Missing required parameters"}), 400
@@ -141,21 +140,13 @@ def analyze_image():
         return jsonify({"error": str(e)}), 500
 
     try:
-        client = OpenAI(api_key = OPENAI_KEY)
-        response = client.chat.completions.create(
+        response = client.responses.create(
             model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": f"""Could this image trigger trigger any of the fears or
-                         exclusions mentioned in the user prompt? Return 'true' or 'false'. User Prompt: {exclusion_list}"""},
-                        {"type": "image_url", "image_url": {"url": base64_image, "detail": "low"}}
-                    ]
-                }
-            ]
+            instructions="""Could this image trigger trigger any of the fears or 
+            exclusions mentioned in the user prompt? Return 'true' or 'false'. User Prompt: {exclusion_list}""",
+            input=f"Image url: {base64_image}, Detail: low"
         )
-        result_text = response.choices[0].message.content
+        result_text = response.output_text
         return jsonify({"result": result_text.lower() in ['true']})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
